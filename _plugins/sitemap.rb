@@ -1,3 +1,6 @@
+# This file is licensed under the MIT License (MIT) available on
+# http://opensource.org/licenses/MIT.
+
 #sitemap.rb generates a sitemap.xml file, which also includes
 #alternate hreflang for each translated version of each page.
 
@@ -14,11 +17,22 @@ module Jekyll
 
   class SitemapGenerator < Generator
     def generate(site)
+      #Do nothing if plugin is disabled
+      if !ENV['ENABLED_PLUGINS'].nil? and ENV['ENABLED_PLUGINS'].index('sitemap').nil?
+        print 'Sitemap disabled' + "\n"
+        return
+      end
       #Load translations
       locs = {}
+      enabled = ENV['ENABLED_LANGS'];
+      enabled = enabled.split(' ') if !enabled.nil?
       Dir.foreach('_translations') do |file|
-        next if file == '.' or file == '..'
+        next if file == '.' or file == '..' or file == 'COPYING'
         lang=file.split('.')[0]
+        #Ignore lang if disabled
+        if lang != 'en' and !enabled.nil? and !enabled.include?(lang)
+          next
+        end
         locs[lang] = YAML.load_file('_translations/'+file)[lang]
       end
       #Create destination directory if does not exists
@@ -48,33 +62,23 @@ module Jekyll
           end
         end
 	#Add static non-translated pages
-        Dir.foreach('.') do |file1|
-          if /^[a-z]{2}(_[A-Z]{2})?$/.match(file1) and File.directory?(file1)
-            Dir.foreach(file1) do |file2|
-              next if !/\.html$|\.md$/.match(file2)
-              data = File.read(file1+'/'+file2)
-              sitemap.puts '<url>'
-              sitemap.puts '  <loc>https://bitcoin.org/'+file1+'/'+file2.gsub('.html','').gsub('.md','')+'</loc>'
-              sitemap.puts '</url>'
-            end
-          end
-          next if !/\.html$|\.md$/.match(file1)
-          next if file1 == 'index.html' or file1 == '404.html' or file1 == 'README.md'
+        Dir.glob('en/**/*.{md,html}').concat(Dir.glob('*.{md,html}')).each do |file|
+          next if file == 'index.html' or file == '404.html' or file == 'README.md'
           #Ignore google webmaster tools
-          data = File.read(file1)
+          data = File.read(file)
           next if !data.index('google-site-verification:').nil?
           sitemap.puts '<url>'
-          sitemap.puts '  <loc>https://bitcoin.org/'+file1.gsub('.html','').gsub('.md','')+'</loc>'
+          sitemap.puts '  <loc>https://bitcoin.org/'+file.gsub('.html','').gsub('.md','')+'</loc>'
           sitemap.puts '</url>'
         end
-        #Add english alerts pages
+        #Add alerts pages
         Dir.foreach('_alerts') do |file|
           next if file == '.' or file == '..'
           sitemap.puts '<url>'
           sitemap.puts '  <loc>https://bitcoin.org/en/alert/'+file.gsub('.html','')+'</loc>'
           sitemap.puts '</url>'
         end
-        #Add english releases pages
+        #Add releases pages
         Dir.foreach('_releases') do |file|
           next if file == '.' or file == '..'
           file = file.split('-')
